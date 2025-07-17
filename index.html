@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네이버 지도 - 부동산 매물 지도</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #F9FAFB;
+            font-family: 'Pretendard', 'Noto Sans KR', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #191F28;
+        }
+        .map-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+        .filter-toggle-btn {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            background: #3182F6;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 32px;
+            font-size: 22px;
+            font-weight: 700;
+            cursor: pointer;
+            z-index: 1100;
+            box-shadow: 0 4px 16px rgba(49,130,246,0.18);
+            transition: background 0.2s, box-shadow 0.2s, font-size 0.2s;
+        }
+        .filter-toggle-btn.collapsed {
+            background: #1B64DA;
+            color: #fff;
+            font-size: 26px;
+            padding: 20px 40px;
+            box-shadow: 0 6px 24px rgba(49,130,246,0.25);
+        }
+        .filter-container {
+            position: absolute;
+            top: 32px;
+            left: 32px;
+            background: #FFFFFF;
+            border-radius: 18px;
+            box-shadow: 0 4px 16px rgba(49,130,246,0.08);
+            padding: 56px 24px 24px 24px; /* padding-top 늘림 */
+            max-width: 700px;
+            min-width: 320px;
+            z-index: 1001;
+            transition: box-shadow 0.2s, opacity 0.2s, transform 0.2s;
+        }
+        .filter-container.collapsed {
+            padding: 0;
+            min-width: 0;
+            max-width: 200px;
+            height: 0;
+            overflow: hidden;
+            opacity: 0.95;
+            box-shadow: none;
+        }
+        .filter-content { transition: max-height 0.3s, opacity 0.3s; }
+        .filter-container.collapsed .filter-content { display: none; }
+        .filter-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 18px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .filter-label {
+            font-weight: 600;
+            color: #333D4B;
+            margin-right: 8px;
+            min-width: 70px;
+        }
+        /* 각 필터 그룹별 배경색 (더 다양하게) */
+        .filter-row.search-row { background: #E8F3FF; border-radius: 10px; padding: 10px 12px; }
+        .filter-row.type-row { background: #D0F5F5; border-radius: 10px; padding: 10px 12px; }
+        .filter-row.region-row { background: #F3E8FF; border-radius: 10px; padding: 10px 12px; }
+        .filter-row.status-row { background: #E0ECFF; border-radius: 10px; padding: 10px 12px; }
+        .filter-row.price-row { background: #F9FAFB; border-radius: 10px; padding: 10px 12px; }
+        .filter-row.date-row { background: #FFF7E0; border-radius: 10px; padding: 10px 12px; }
+        .filter-radio-group {
+            display: flex;
+            gap: 8px;
+        }
+        /* 라디오 버튼 그룹별 배경색 */
+        .type-row .radio-btn { background: #B2EBF4; }
+        .region-row .radio-btn { background: #E1D5FA; }
+        .status-row .radio-btn { background: #B3D8FF; }
+        .radio-btn {
+            border-radius: 8px;
+            padding: 8px 18px;
+            font-weight: 500;
+            color: #6B7684;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border: 2px solid transparent;
+            user-select: none;
+        }
+        .radio-btn input[type="radio"] {
+            display: none;
+        }
+        .radio-btn:has(input[type="radio"]:checked) {
+            background: #3182F6 !important;
+            color: #fff !important;
+            border: 2px solid #1B64DA;
+        }
+        input[type="text"], input[type="number"] {
+            border: 1.5px solid #E5E8EB;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 16px;
+            background: #F9FAFB;
+            color: #191F28;
+            outline: none;
+            transition: border 0.2s;
+        }
+        input[type="text"]:focus, input[type="number"]:focus {
+            border: 1.5px solid #3182F6;
+            background: #E8F3FF;
+        }
+        #search-btn {
+            background: #3182F6;
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 32px;
+            font-size: 18px;
+            box-shadow: 0 2px 8px rgba(49,130,246,0.10);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #search-btn:hover, #search-btn:active {
+            background: #1B64DA;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .error-message {
+            background: #e74c3c;
+            color: white;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .status-bar {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        @media (max-width: 768px) {
+            .filter-toggle-btn {
+                left: 2vw;
+                top: 2vw;
+                font-size: 18px;
+                padding: 12px 20px;
+            }
+            .filter-container {
+                max-width: 98vw;
+                min-width: 0;
+                padding: 56px 6px 12px 6px;
+                left: 2vw;
+                top: 2vw;
+            }
+        }
+        #passwordModal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #passwordBox {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+            padding: 40px 32px 32px 32px;
+            min-width: 320px;
+            text-align: center;
+        }
+        #passwordInput {
+            font-size: 20px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1.5px solid #3182F6;
+            margin-bottom: 18px;
+            width: 80%;
+        }
+        #passwordSubmit {
+            background: #3182F6;
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 32px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        #passwordError {
+            color: #e74c3c;
+            margin-top: 10px;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="passwordModal">
+      <div id="passwordBox">
+        <h2 style="margin-bottom:18px; color:#3182F6;">비밀번호 입력</h2>
+        <input type="password" id="passwordInput" placeholder="비밀번호" autocomplete="off" />
+        <br/>
+        <button id="passwordSubmit">확인</button>
+        <button id="changePasswordBtn" style="margin-left:12px; background:#E5E8EB; color:#3182F6; font-weight:600; border:none; border-radius:8px; padding:12px 24px; font-size:16px; cursor:pointer;">비밀번호 변경</button>
+        <div id="passwordError"></div>
+        <div id="changePasswordBox" style="display:none; margin-top:24px;">
+          <h3 style="color:#3182F6; margin-bottom:10px;">비밀번호 변경</h3>
+          <input type="password" id="oldPasswordInput" placeholder="기존 비밀번호" style="margin-bottom:8px; width:80%; font-size:16px; padding:8px; border-radius:6px; border:1.5px solid #3182F6;" />
+          <br/>
+          <input type="password" id="newPasswordInput" placeholder="새 비밀번호" style="margin-bottom:8px; width:80%; font-size:16px; padding:8px; border-radius:6px; border:1.5px solid #3182F6;" />
+          <br/>
+          <button id="submitChangePassword" style="background:#3182F6; color:#fff; font-weight:700; border:none; border-radius:8px; padding:8px 24px; font-size:16px; cursor:pointer;">변경</button>
+          <button id="cancelChangePassword" style="margin-left:8px; background:#E5E8EB; color:#3182F6; font-weight:600; border:none; border-radius:8px; padding:8px 18px; font-size:15px; cursor:pointer;">취소</button>
+          <div id="changePasswordError" style="color:#e74c3c; margin-top:8px; font-size:14px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="map-container">
+        <div id="map"></div>
+        <button class="filter-toggle-btn" id="filterToggleBtn">필터 접기</button>
+        <div class="filter-container" id="filterContainer">
+          <div class="filter-content" id="filterContent">
+            <div class="filter-row search-row">
+              <input type="text" id="search-input" placeholder="지역명 또는 주소로 검색 (예: 역삼동, 613-21)" style="flex:1; min-width:180px;" />
+            </div>
+            <div class="filter-row type-row">
+              <div class="filter-label">매물 유형</div>
+              <div class="filter-radio-group" id="type-group">
+                <label class="radio-btn"><input type="radio" name="type" value="office" checked />사무실</label>
+                <label class="radio-btn"><input type="radio" name="type" value="store" />상가</label>
+              </div>
+            </div>
+            <div class="filter-row region-row">
+              <div class="filter-label">지역</div>
+              <div class="filter-radio-group" id="region-group">
+                <label class="radio-btn"><input type="radio" name="region" value="gangnam" checked />강남월세</label>
+                <label class="radio-btn"><input type="radio" name="region" value="songpa" />송파월세</label>
+              </div>
+            </div>
+            <div class="filter-row status-row">
+              <div class="filter-label">매물 상태</div>
+              <div class="filter-radio-group" id="status-group">
+                <label class="radio-btn"><input type="radio" name="status" value="공클" checked />공클</label>
+                <label class="radio-btn"><input type="radio" name="status" value="온하" />온하</label>
+                <label class="radio-btn"><input type="radio" name="status" value="갠매" />갠매</label>
+              </div>
+              <label style="margin-left:16px; font-weight:600; color:#3182F6; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="singleOnlyCheckbox" style="vertical-align:middle; margin-right:6px;" />매물1개만
+              </label>
+            </div>
+            <div class="filter-row price-row">
+              <div class="filter-label">보증금</div>
+              <input type="number" id="deposit-min" placeholder="최소(만원)" style="width:90px;" />
+              <span>~</span>
+              <input type="number" id="deposit-max" placeholder="최대(만원)" style="width:90px;" />
+              <div class="filter-label">월세</div>
+              <input type="number" id="rent-min" placeholder="최소(만원)" style="width:90px;" />
+              <span>~</span>
+              <input type="number" id="rent-max" placeholder="최대(만원)" style="width:90px;" />
+            </div>
+            <div class="filter-row date-row" style="background:#FFF7E0; border-radius:10px; padding:10px 12px;">
+              <div class="filter-label">등록일</div>
+              <div class="filter-radio-group" id="date-group">
+                <label class="radio-btn" style="background:#FFE082;"><input type="radio" name="date" value="1" />1일</label>
+                <label class="radio-btn" style="background:#FFD54F;"><input type="radio" name="date" value="2" />2일</label>
+                <label class="radio-btn" style="background:#FFCA28;"><input type="radio" name="date" value="3" />3일</label>
+                <label class="radio-btn" style="background:#FFC107;"><input type="radio" name="date" value="4" />4일</label>
+                <label class="radio-btn" style="background:#FFB300;"><input type="radio" name="date" value="5" />5일</label>
+                <label class="radio-btn" style="background:#FFA000;"><input type="radio" name="date" value="6" />6일</label>
+                <label class="radio-btn" style="background:#FF8F00;"><input type="radio" name="date" value="7" />7일</label>
+                <label class="radio-btn" style="background:#F9FAFB;"><input type="radio" name="date" value="" checked />전체</label>
+              </div>
+            </div>
+            <div class="filter-row" style="justify-content:center; gap:16px;">
+              <button id="search-btn">매물 검색하기</button>
+              <button id="reset-btn" style="background:#E5E8EB; color:#333D4B; font-weight:600; border:none; border-radius:10px; padding:12px 24px; font-size:16px; margin-left:8px; cursor:pointer;">필터 초기화</button>
+            </div>
+          </div>
+        </div>
+        <div class="loading" id="loading">
+            <p>🗺️ 지도를 불러오는 중...</p>
+        </div>
+        <div class="status-bar" id="statusBar">
+            시스템 준비 중...
+        </div>
+        <div style="position: absolute; top: 18px; right: 18px; background: #191F28; color: white; padding: 12px 20px; border-radius: 10px; font-size: 16px; font-weight: 600; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" id="totalCount">
+            총 매물: 0개
+        </div>
+    </div>
+
+    <!-- 설정 파일 -->
+    <script src="config.js"></script>
+    <!-- 슈퍼베이스 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // 전역 변수
+        let map;
+        let supabase;
+        let markers = [];
+        let properties = [];
+        let selectedProperty = null;
+        let filteredProperties = [];
+        let geocodeCache = {}; // 지오코딩 캐시
+        let lastLoadedRegion = 'gangnam'; // 마지막으로 로드한 지역 추적
+
+        // 기본 비밀번호
+        const DEFAULT_PASSWORD = 'ejxkqdnjs1';
+        // 관리자 비밀번호(고정)
+        const ADMIN_PASSWORD = 'ejxkqdnjs88';
+        // 로컬스토리지에서 비밀번호 가져오기
+        function getPagePassword() {
+            return localStorage.getItem('page_password') || DEFAULT_PASSWORD;
+        }
+        // 비밀번호 저장
+        function setPagePassword(newPw) {
+            localStorage.setItem('page_password', newPw);
+        }
+
+        // 비밀번호 인증 처리
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('passwordModal');
+            const input = document.getElementById('passwordInput');
+            const submit = document.getElementById('passwordSubmit');
+            const errorDiv = document.getElementById('passwordError');
+            const changeBtn = document.getElementById('changePasswordBtn');
+            const changeBox = document.getElementById('changePasswordBox');
+            const oldPwInput = document.getElementById('oldPasswordInput');
+            const newPwInput = document.getElementById('newPasswordInput');
+            const submitChange = document.getElementById('submitChangePassword');
+            const cancelChange = document.getElementById('cancelChangePassword');
+            const changeError = document.getElementById('changePasswordError');
+
+            function tryAuth() {
+                if (input.value === getPagePassword()) {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = '';
+                } else {
+                    errorDiv.textContent = '비밀번호가 올바르지 않습니다.';
+                    input.value = '';
+                    input.focus();
+                }
+            }
+            submit.onclick = tryAuth;
+            input.onkeydown = function(e) { if (e.key === 'Enter') tryAuth(); };
+            input.focus();
+            document.body.style.overflow = 'hidden';
+
+            // 비밀번호 변경 UI
+            changeBtn.onclick = function() {
+                changeBox.style.display = 'block';
+                oldPwInput.value = '';
+                newPwInput.value = '';
+                changeError.textContent = '';
+                oldPwInput.focus();
+            };
+            cancelChange.onclick = function() {
+                changeBox.style.display = 'none';
+            };
+            submitChange.onclick = function() {
+                const adminPw = oldPwInput.value;
+                const newPw = newPwInput.value;
+                if (!adminPw || !newPw) {
+                    changeError.textContent = '모든 항목을 입력하세요.';
+                    return;
+                }
+                if (adminPw !== ADMIN_PASSWORD) {
+                    changeError.textContent = '관리자 비밀번호가 올바르지 않습니다.';
+                    return;
+                }
+                setPagePassword(newPw);
+                changeError.textContent = '비밀번호가 성공적으로 변경되었습니다!';
+                setTimeout(() => {
+                    changeBox.style.display = 'none';
+                    errorDiv.textContent = '';
+                }, 1200);
+            };
+        });
+
+        // 지오코딩 캐시 로드
+        function loadGeocodeCache() {
+            try {
+                const cached = localStorage.getItem('geocodeCache');
+                if (cached) {
+                    geocodeCache = JSON.parse(cached);
+                    console.log(`지오코딩 캐시 ${Object.keys(geocodeCache).length}개 로드됨`);
+                }
+            } catch (error) {
+                console.warn('지오코딩 캐시 로드 실패:', error);
+                geocodeCache = {};
+            }
+        }
+
+        // 지오코딩 캐시 저장
+        function saveGeocodeCache() {
+            try {
+                localStorage.setItem('geocodeCache', JSON.stringify(geocodeCache));
+            } catch (error) {
+                console.warn('지오코딩 캐시 저장 실패:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            document.getElementById('search-btn').addEventListener('click', onFilterSearch);
+            document.getElementById('filterToggleBtn').addEventListener('click', function() {
+                const filterContainer = document.getElementById('filterContainer');
+                const btn = document.getElementById('filterToggleBtn');
+                if (filterContainer.classList.contains('collapsed')) {
+                    filterContainer.classList.remove('collapsed');
+                    btn.textContent = '필터 접기';
+                    btn.classList.remove('collapsed');
+                } else {
+                    filterContainer.classList.add('collapsed');
+                    btn.textContent = '필터 펼치기';
+                    btn.classList.add('collapsed');
+                }
+            });
+            document.getElementById('reset-btn').addEventListener('click', function() {
+                // 필터 입력값 초기화
+                document.getElementById('search-input').value = '';
+                document.querySelector('input[name="type"][value="office"]').checked = true;
+                document.querySelector('input[name="region"][value="gangnam"]').checked = true;
+                document.querySelector('input[name="status"][value="공클"]').checked = true;
+                document.getElementById('singleOnlyCheckbox').checked = false; // 체크박스 초기화
+                document.getElementById('deposit-min').value = '';
+                document.getElementById('deposit-max').value = '';
+                document.getElementById('rent-min').value = '';
+                document.getElementById('rent-max').value = '';
+                document.querySelector('input[name="date"][value=""]').checked = true;
+                
+                // 필터 초기화 시 매물을 표시하지 않음
+                filteredProperties = [];
+                displayMarkersOnMap();
+                updateStatus('필터가 초기화되었습니다. 검색 버튼을 눌러주세요.');
+                document.getElementById('totalCount').textContent = '총 매물: 0개';
+            });
+        });
+
+        // 네이버 지도 API 동적 로드
+        function loadNaverMapAPI() {
+            return new Promise((resolve, reject) => {
+                if (window.naver && window.naver.maps) {
+                    resolve();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.type = 'text/javascript';
+                script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${CONFIG.CLIENT_ID}&submodules=geocoder`;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        async function initializeApp() {
+            try {
+                updateStatus('시스템 초기화 중...');
+                // 지오코딩 캐시 로드
+                loadGeocodeCache();
+                const configErrors = validateConfig ? validateConfig() : [];
+                if (configErrors.length > 0) {
+                    showError('설정 오류: ' + configErrors.join(', '));
+                    return;
+                }
+                
+                // 네이버 지도 API 로드
+                updateStatus('네이버 지도 API 로드 중...');
+                await loadNaverMapAPI();
+                supabase = window.supabase.createClient(
+                    CONFIG.SUPABASE.URL,
+                    CONFIG.SUPABASE.ANON_KEY
+                );
+                await initializeMap();
+                // 지도 초기화가 끝나면 loading 메시지 숨김
+                hideLoading();
+                await loadProperties();
+                updateStatus('시스템 준비 완료');
+            } catch (error) {
+                console.error('초기화 오류:', error);
+                showError('시스템 초기화 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        function initializeMap() {
+            return new Promise((resolve, reject) => {
+                try {
+                    map = new naver.maps.Map('map', {
+                        center: new naver.maps.LatLng(CONFIG.NAVER_MAP.CENTER.lat, CONFIG.NAVER_MAP.CENTER.lng),
+                        zoom: CONFIG.NAVER_MAP.ZOOM,
+                        mapTypeControl: true,
+                        mapTypeControlOptions: {
+                            style: naver.maps.MapTypeControlStyle.BUTTON,
+                            position: naver.maps.Position.TOP_LEFT
+                        },
+                        zoomControl: true,
+                        zoomControlOptions: {
+                            style: naver.maps.ZoomControlStyle.SMALL,
+                            position: naver.maps.Position.TOP_RIGHT
+                        }
+                    });
+                    updateStatus('지도 로드 완료');
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        async function loadProperties() {
+            try {
+                updateStatus('매물 데이터 로드 중...');
+                
+                // 선택된 지역에 따라 다른 테이블 조회
+                const region = document.querySelector('input[name="region"]:checked').value;
+                let tableName = '네이버지도1'; // 기본값 (강남)
+                
+                if (region === 'songpa') {
+                    // 송파는 supabase 연결하지 않고, 아무 데이터도 불러오지 않음
+                    properties = [];
+                    filteredProperties = [];
+                    updateStatus('송파월세는 데이터베이스와 연결하지 않습니다.');
+                    displayMarkersOnMap();
+                    document.getElementById('totalCount').textContent = '총 매물: 0개';
+                    return;
+                }
+                
+                // id 컬럼 기준 key-based pagination으로 1만개씩 최대 5만개까지 반복해서 받아오기
+                let allData = [];
+                let batchSize = 10000;
+                let maxCount = 50000;
+                let lastId = 0;
+                while (allData.length < maxCount) {
+                    const { data, error } = await supabase
+                        .from(tableName)
+                        .select('*')
+                        .gt('id', lastId)
+                        .order('id', { ascending: true })
+                        .limit(batchSize);
+                    if (error) {
+                        if (allData.length === 0) throw error;
+                        else break;
+                    }
+                    if (!data || data.length === 0) break;
+                    allData = allData.concat(data);
+                    lastId = data[data.length - 1].id;
+                    if (data.length < batchSize) break;
+                }
+                properties = allData;
+                // 초기 로드 시에는 매물을 표시하지 않음
+                filteredProperties = [];
+                updateStatus(`매물 ${properties.length}개 로드 완료 - 검색 버튼을 눌러주세요`);
+                document.getElementById('totalCount').textContent = `총 매물: ${properties.length}개`;
+            } catch (error) {
+                console.error('데이터 로드 오류:', error);
+                showError('데이터 로드 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 한글 금액 표기를 만원 단위 숫자로 변환하는 함수
+        function parseKoreanAmount(str) {
+            console.log(`[DEBUG] parseKoreanAmount 입력: "${str}"`);
+            if (!str || str === '-' || str === '0') return 0;
+            
+            // 숫자만 있는 경우 (이미 만원 단위)
+            if (/^\d+$/.test(str.replace(/[,\s]/g, ''))) {
+                const result = parseInt(str.replace(/[,\s]/g, ''));
+                console.log(`[DEBUG] 숫자만 있는 경우: ${result}`);
+                return parseInt(str.replace(/[,\s]/g, ''));
+            }
+            
+            let amount = 0;
+            str = str.replace(/[,\s]/g, ''); // 쉼표, 공백 제거
+            console.log(`[DEBUG] 정리된 문자열: "${str}"`);
+            
+            // 억 단위 처리
+            const eokMatch = str.match(/(\d+)억/);
+            if (eokMatch) {
+                amount += parseInt(eokMatch[1]) * 10000; // 1억 = 10000만원
+                console.log(`[DEBUG] 억 단위 추가: ${eokMatch[1]}억 = ${parseInt(eokMatch[1]) * 10000}만원`);
+            }
+            
+            // 천만 단위 처리 (억 뒤의 천)
+            const remainAfterEok = str.replace(/\d+억/, '');
+            console.log(`[DEBUG] 억 제거 후: "${remainAfterEok}"`);
+            const cheonMatch = remainAfterEok.match(/(\d+)천/);
+            if (cheonMatch) {
+                amount += parseInt(cheonMatch[1]) * 1000; // 1천만 = 1000만원
+                console.log(`[DEBUG] 천 단위 추가: ${cheonMatch[1]}천 = ${parseInt(cheonMatch[1]) * 1000}만원`);
+            }
+            
+            // 만 단위 처리
+            const manMatch = remainAfterEok.match(/(\d+)만/);
+            if (manMatch) {
+                amount += parseInt(manMatch[1]); // 만원 단위 그대로
+                console.log(`[DEBUG] 만 단위 추가: ${manMatch[1]}만 = ${parseInt(manMatch[1])}만원`);
+            }
+            
+            // 단순 숫자만 있는 경우 처리 (억, 천, 만 제거 후)
+            const pureNumber = remainAfterEok.replace(/[억천만]/g, '');
+            if (pureNumber && /^\d+$/.test(pureNumber)) {
+                // 만 단위가 없고 숫자만 있는 경우는 만원 단위로 가정
+                if (!remainAfterEok.includes('만') && !remainAfterEok.includes('천')) {
+                    amount += parseInt(pureNumber);
+                    console.log(`[DEBUG] 순수 숫자 추가: ${pureNumber}만원`);
+                }
+            }
+            
+            console.log(`[DEBUG] 최종 결과: ${amount}만원`);
+            return amount;
+        }
+
+        function onFilterSearch() {
+            const keyword = document.getElementById('search-input').value.trim();
+            const type = document.querySelector('input[name="type"]:checked').value; // 'office' or 'store'
+            const region = document.querySelector('input[name="region"]:checked').value; // 'gangnam' or 'songpa'
+            const status = document.querySelector('input[name="status"]:checked').value; // '공클', '온하', '갠매'
+            const dateValue = document.querySelector('input[name="date"]:checked').value; // '1'~'7' or ''
+            // 보증금/월세 필터 값 읽기
+            const depositMin = document.getElementById('deposit-min').value;
+            const depositMax = document.getElementById('deposit-max').value;
+            const rentMin = document.getElementById('rent-min').value;
+            const rentMax = document.getElementById('rent-max').value;
+            const today = new Date();
+            const singleOnly = document.getElementById('singleOnlyCheckbox').checked;
+
+            // 지역이 변경된 경우 데이터 다시 로드
+            const currentRegion = document.querySelector('input[name="region"]:checked').value;
+            if (currentRegion !== lastLoadedRegion) {
+                lastLoadedRegion = currentRegion;
+                loadProperties().then(() => {
+                    filterAndDisplay();
+                });
+            } else {
+                filterAndDisplay();
+            }
+            
+            function filterAndDisplay() {
+                let filtered = properties.filter(row => {
+                    // 1. 매물유형: '종류' 컬럼이 '사무실' 또는 '상가' 포함
+                    const typeCol = row.종류 || '';
+                    const typeMatch = (type === 'office' && typeCol.includes('사무실')) ||
+                                      (type === 'store' && typeCol.includes('상가'));
+
+                    // 2. 강남월세: 모든 매물 (별도 지역 필터 없음)
+                    const regionMatch = true;
+
+                    // 3. 매물상태: 해당 컬럼 값이 정확히 '공클', '온하', '갠매'인지
+                    let statusMatch = false;
+                    if (status === '공클') {
+                        statusMatch = row.공클 === '공클';
+                    } else if (status === '온하') {
+                        statusMatch = row.온하 === '온하';
+                    } else if (status === '갠매') {
+                        statusMatch = (typeof row.갠매 === 'string') && (row.갠매.trim() === '갠매');
+                    } else {
+                        statusMatch = true; // 기본값이나 알 수 없는 상태
+                    }
+
+                    // 4. 등록일: '등록/확인일' 기준, 해당 등록일만 보이게 처리
+                    let dateOk = true;
+                    if (dateValue) {
+                        let regDate = row['등록/확인일'] || '';
+                        regDate = regDate.replace(/[^0-9]/g, '');
+                        if (regDate.length === 8) {
+                            const reg = new Date(
+                                parseInt(regDate.slice(0,4)),
+                                parseInt(regDate.slice(4,6))-1,
+                                parseInt(regDate.slice(6,8))
+                            );
+                            const diff = (today - reg) / (1000*60*60*24);
+                            // 정확히 N일 전에 등록된 매물만 표시
+                            const targetDays = parseInt(dateValue);
+                            dateOk = Math.floor(diff) === targetDays - 1;
+                        } else {
+                            dateOk = false; // 날짜 형식이 이상하면 필터에서 제외
+                        }
+                    }
+
+                    // 5. 보증금 필터링
+                    let depositOk = true;
+                    if (depositMin || depositMax) {
+                        const deposit = parseKoreanAmount(row.전세금 || '0');
+                        if (depositMin && deposit < parseFloat(depositMin)) depositOk = false;
+                        if (depositMax && deposit > parseFloat(depositMax)) depositOk = false;
+                    }
+
+                    // 6. 월세 필터링
+                    let rentOk = true;
+                    if (rentMin || rentMax) {
+                        const rent = parseKoreanAmount(row.월세 || '0');
+                        if (rentMin && rent < parseFloat(rentMin)) rentOk = false;
+                        if (rentMax && rent > parseFloat(rentMax)) rentOk = false;
+                    }
+
+                    // 7. 키워드(주소/동/건물명/매물명)
+                    const keywordMatch = !keyword || (
+                        (row.주소 && row.주소.includes(keyword)) ||
+                        (row.동 && row.동.includes(keyword)) ||
+                        (row.건물명 && row.건물명.includes(keyword)) ||
+                        (row.매물명 && row.매물명.includes(keyword))
+                    );
+
+                    return typeMatch && regionMatch && statusMatch && dateOk && depositOk && rentOk && keywordMatch;
+                });
+
+                // 매물1개만 체크 시, 주소별로 1개만 남기기
+                if (singleOnly) {
+                    // 주소별 그룹화
+                    const addressCount = {};
+                    filtered.forEach(row => {
+                        const addr = row.주소 || '';
+                        addressCount[addr] = (addressCount[addr] || 0) + 1;
+                    });
+                    filtered = filtered.filter(row => addressCount[row.주소 || ''] === 1);
+                }
+
+                filteredProperties = filtered;
+                displayMarkersOnMap();
+                updateStatus(`매물 ${filteredProperties.length}개 표시 중`);
+                document.getElementById('totalCount').textContent = `총 매물: ${filteredProperties.length}개`;
+            }
+        }
+
+        async function displayMarkersOnMap() {
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+            
+            // 같은 주소의 매물들을 그룹화
+            const groupedProperties = {};
+            filteredProperties.forEach((property, index) => {
+                const address = property.주소 || '';
+                if (!groupedProperties[address]) {
+                    groupedProperties[address] = [];
+                }
+                groupedProperties[address].push({...property, originalIndex: index});
+            });
+            
+            // 배치 처리로 마커 생성
+            const addresses = Object.keys(groupedProperties);
+            const batchSize = 20; // 한 번에 처리할 마커 수 증가
+            let processedCount = 0;
+            
+            async function processBatch() {
+                const batch = addresses.slice(processedCount, processedCount + batchSize);
+                
+                for (const address of batch) {
+                    const propertiesGroup = groupedProperties[address];
+                    try {
+                        const coords = await geocodeAddress(address);
+                        if (coords) {
+                            createMarker(propertiesGroup, coords, address);
+                        }
+                    } catch (error) {
+                        console.warn(`주소 변환 실패: ${address}`, error);
+                    }
+                }
+                
+                processedCount += batchSize;
+                updateStatus(`마커 생성 중... (${Math.min(processedCount, addresses.length)}/${addresses.length})`);
+                
+                if (processedCount < addresses.length) {
+                    // 다음 배치를 다음 프레임에 처리
+                    requestAnimationFrame(processBatch);
+                } else {
+                    updateStatus(`마커 ${markers.length}개 표시 완료`);
+                }
+            }
+            
+            if (addresses.length > 0) {
+                processBatch();
+            } else {
+                updateStatus('표시할 매물이 없습니다');
+            }
+        }
+
+        function geocodeAddress(address) {
+            // 캐시에서 먼저 확인
+            if (geocodeCache[address]) {
+                return Promise.resolve(new naver.maps.LatLng(geocodeCache[address].lat, geocodeCache[address].lng));
+            }
+            
+            return new Promise((resolve, reject) => {
+                naver.maps.Service.geocode({
+                    query: address
+                }, function(status, response) {
+                    if (status === naver.maps.Service.Status.ERROR) {
+                        reject(new Error('Geocoding failed'));
+                        return;
+                    }
+
+                    if (response.v2.meta.totalCount === 0) {
+                        reject(new Error('No results found'));
+                        return;
+                    }
+
+                    const result = response.v2.addresses[0];
+                    const coords = new naver.maps.LatLng(result.y, result.x);
+                   
+                    // 캐시에 저장
+                    geocodeCache[address] = { lat: result.y, lng: result.x };
+                    saveGeocodeCache();
+                   
+                    resolve(coords);
+                });
+            });
+        }
+
+        function createMarker(propertiesGroup, coords, address) {
+            const propertyCount = propertiesGroup.length;
+            const displayText = propertyCount > 1 ? `${address} (${propertyCount}개)` : address;
+            
+            const marker = new naver.maps.Marker({
+                position: coords,
+                map: map,
+                title: displayText,
+                icon: {
+                    content: `<div style="background: ${propertyCount > 1 ? '#FF6B35' : '#3182F6'}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.18); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${displayText}</div>`,
+                    size: new naver.maps.Size(30, 30),
+                    anchor: new naver.maps.Point(15, 15)
+                }
+            });
+            // 정보창 생성
+            const infoWindow = new naver.maps.InfoWindow({
+                content: createInfoWindowContent(propertiesGroup),
+                maxWidth: 320,
+                backgroundColor: "#fff",
+                borderColor: "#ccc",
+                borderWidth: 1,
+                anchorSize: new naver.maps.Size(10, 10),
+                anchorSkew: true,
+                anchorColor: "#fff",
+                pixelOffset: new naver.maps.Point(0, -10)
+            });
+            marker.isOpen = false;
+            naver.maps.Event.addListener(marker, 'click', function() {
+                if (marker.isOpen) {
+                    infoWindow.close();
+                    marker.isOpen = false;
+                } else {
+                    markers.forEach(m => { if (m.infoWindow) { m.infoWindow.close(); m.isOpen = false; } });
+                    infoWindow.open(map, marker);
+                    marker.isOpen = true;
+                }
+            });
+            marker.infoWindow = infoWindow;
+            markers.push(marker);
+        }
+
+        function createInfoWindowContent(propertiesGroup) {
+            const address = propertiesGroup[0].주소 || '';
+            const propertyCount = propertiesGroup.length;
+            
+            let content = `
+                <div style="padding: 18px; font-family: 'Segoe UI', sans-serif; min-width:280px; max-width:400px;">
+                    <div style="font-size:16px; color:#333D4B; font-weight:700; margin-bottom:12px; border-bottom:2px solid #E5E8EB; padding-bottom:8px;">
+                        ${address}
+                        <span style="color:#3182F6; font-size:14px; font-weight:600; margin-left:8px;">(${propertyCount}개 매물)</span>
+                    </div>
+                    <div style="max-height:300px; overflow-y:auto; padding-right:8px;">
+            `;
+            
+            propertiesGroup.forEach((property, index) => {
+                // 등록일 표기 (yyyy-mm-dd)
+                let date = property['등록/확인일'] || property.확인일 || property.등록일 || '';
+                if (date && date.length >= 8) {
+                    date = date.replace(/[^0-9]/g, '');
+                    if (date.length === 8) date = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+                }
+                // 보증금(전세금), 월세
+                const deposit = property.전세금 || '';
+                const rent = property.월세 || '';
+                // 링크
+                const link = property['링크(URL)'] || property.링크 || property.url || property.URL;
+                
+                content += `
+                    <div style="border:1px solid #E5E8EB; border-radius:8px; padding:12px; margin-bottom:8px; background:#F9FAFB;">
+                        <div style="font-size:14px; color:#191F28; font-weight:600; margin-bottom:6px;">매물 ${index + 1}</div>
+                        <div style="font-size:14px; color:#191F28; margin-bottom:4px;">보증금 <b>${deposit}</b> / 월세 <b>${rent}</b></div>
+                        <div style="font-size:13px; color:#6B7684; margin-bottom:8px;">등록일 : ${date || '-'}</div>
+                        <div style="text-align:center;">
+                            ${link && link !== 'undefined' && link !== 'null' && link.trim() !== ''
+                                ? `<a href="${/^https?:\/\//i.test(link) ? link : 'https://' + link}" target="_blank" style="display:inline-block; background:#3182F6; color:#fff; font-weight:600; border-radius:6px; padding:6px 12px; text-decoration:none; font-size:13px;">상세보기</a>`
+                                : `<span style="color: #aaa; font-size: 12px;">상세 링크 없음</span>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+            
+            content += `
+                    </div>
+                </div>
+            `;
+            
+            return content;
+        }
+
+        function selectProperty(index) {
+            // 이전 선택 해제
+            document.querySelectorAll('.property-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // 새로운 선택
+            const propertyItem = document.querySelector(`[data-index="${index}"]`);
+            if (propertyItem) {
+                propertyItem.classList.add('selected');
+                selectedProperty = properties[index];
+                
+                // 지도 중심 이동
+                if (markers[index]) {
+                    map.setCenter(markers[index].getPosition());
+                    map.setZoom(15);
+                }
+            }
+        }
+
+        function openPropertyLink(url) {
+            if (url) {
+                // http(s)://로 시작하지 않으면 자동으로 붙여줌
+                if (!/^https?:\/\//i.test(url)) {
+                    url = 'https://' + url;
+                }
+                window.open(url, '_blank');
+            }
+        }
+
+        function updateStatus(message) {
+            document.getElementById('statusBar').textContent = message;
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            document.body.insertBefore(errorDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+        }
+
+        // 전역 함수로 노출 (정보창에서 사용)
+        window.openPropertyLink = openPropertyLink;
+    </script>
+</body>
+</html> 
