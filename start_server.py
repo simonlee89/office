@@ -84,23 +84,36 @@ def open_browser(url, delay=2):
     thread.start()
 
 def generate_config_js():
-    """.env에서 CLIENT_ID를 읽어 config.js 생성 (이미 존재하면 스킵)"""
-    # config.js가 이미 존재하면 생성하지 않음
-    if os.path.exists('config.js'):
-        return
-    
-    load_dotenv()
-    client_id = os.getenv('NAVER_CLIENT_ID', '')
-    # config.js 내용 생성
-    config_content = f"""
+    print("config.js 생성 시도", flush=True)
+    try:
+        if os.path.exists('config.js'):
+            print("config.js already exists", flush=True)
+            return
+
+        load_dotenv()
+        client_id = os.getenv('NAVER_CLIENT_ID', '')
+        client_secret = os.getenv('NAVER_MAP_CLIENT_SECRET', '')
+        supabase_url = os.getenv('SUPABASE_URL', '')
+        supabase_anon_key = os.getenv('SUPABASE_ANON_KEY', '')
+
+        config_content = f"""
 window.CONFIG = {{
-    CLIENT_ID: '{client_id}'
+    CLIENT_ID: '{client_id}',
+    CLIENT_SECRET: '{client_secret}',
+    SUPABASE: {{
+        URL: '{supabase_url}',
+        ANON_KEY: '{supabase_anon_key}'
+    }}
 }};
 """
-    with open('config.js', 'w', encoding='utf-8') as f:
-        f.write(config_content)
+        with open('config.js', 'w', encoding='utf-8') as f:
+            f.write(config_content)
+        print("config.js 생성 완료", flush=True)
+    except Exception as e:
+        print(f"config.js 생성 실패: {e}", flush=True)
 
 def main():
+    print("서버 시작", flush=True)
     print("🗺️ 네이버 지도 웹 애플리케이션 서버 시작")
     print("=" * 50)
     
@@ -150,6 +163,7 @@ def main():
         print("\n🛑 서버 종료 중...")
         server.shutdown()
         print("✅ 서버가 정상적으로 종료되었습니다.")
+        print("서버 종료", flush=True)
         
     except OSError as e:
         if e.errno == 10048:  # Windows: 포트 이미 사용 중
@@ -157,11 +171,12 @@ def main():
             print("💡 다른 프로그램이 해당 포트를 사용하고 있거나 이미 서버가 실행 중일 수 있습니다.")
         else:
             print(f"❌ 서버 시작 오류: {e}")
-        
+        print("서버 종료", flush=True)
         input("아무 키나 눌러서 종료하세요...")
         
     except Exception as e:
         print(f"❌ 예상치 못한 오류: {e}")
+        print("서버 종료", flush=True)
         input("아무 키나 눌러서 종료하세요...")
 
 if __name__ == "__main__":
