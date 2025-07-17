@@ -117,8 +117,8 @@ def main():
     print("🗺️ 네이버 지도 웹 애플리케이션 서버 시작")
     print("=" * 50)
     
-    # .env에서 config.js 자동 생성
-    generate_config_js()
+    # config.js 자동 생성 제거
+    # generate_config_js()  # 이 줄을 삭제
     
     # 파일 존재 확인
     if not check_html_file():
