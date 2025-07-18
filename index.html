@@ -567,7 +567,7 @@
                 // id 컬럼 기준 key-based pagination으로 1만개씩 최대 5만개까지 반복해서 받아오기
                 let allData = [];
                 let batchSize = 10000;
-                let maxCount = 50000;
+                let maxCount = 100000;
                 let lastId = 0;
                 while (allData.length < maxCount) {
                     const { data, error } = await supabase
